@@ -1,0 +1,154 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wavvy — EV Charging</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      color: #10201c;
+    }
+    header {
+      background: #101d2b;
+      color: white;
+      padding: 22px 7%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo { font-size: 25px; font-weight: bold; }
+    .logo span { color: #70f0a0; }
+    .hero {
+      padding: 65px 7% 55px;
+      background: #101d2b;
+      color: white;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 62px);
+      max-width: 700px;
+      margin: 0 0 18px;
+      line-height: 1.08;
+    }
+    .hero p {
+      color: #c6d0db;
+      font-size: 18px;
+      line-height: 1.6;
+      max-width: 540px;
+    }
+    .green { color: #70f0a0; }
+    .search {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+    input, button {
+      font: inherit;
+      border-radius: 9px;
+      padding: 14px;
+    }
+    input { border: 1px solid #cbd5e1; min-width: 220px; }
+    button {
+      border: 0;
+      background: #70f0a0;
+      color: #10201c;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    main { padding: 35px 7%; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 18px;
+    }
+    .card {
+      background: white;
+      border: 1px solid #e1e7ed;
+      border-radius: 14px;
+      padding: 22px;
+    }
+    .tag {
+      display: inline-block;
+      background: #e0fbea;
+      color: #146c3a;
+      padding: 6px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .card p { color: #596579; line-height: 1.5; }
+    .price { font-size: 22px; font-weight: bold; }
+    footer { padding: 25px 7%; color: #657080; }
+    #message { margin-top: 15px; color: #70f0a0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">wavvy<span>.</span></div>
+    <div>Plug in. Move on. ⚡</div>
+  </header>
+
+  <section class="hero">
+    <p class="green">A smarter way to charge</p>
+    <h1>Find a charger.<br><span class="green">Keep moving.</span></h1>
+    <p>Discover EV charging spots shared by hosts. Find a convenient place to charge around Pune.</p>
+    <div class="search">
+      <input id="city" value="Pune" aria-label="City" placeholder="Enter your city">
+      <button onclick="findChargers()">Find chargers</button>
+    </div>
+    <p id="message" aria-live="polite"></p>
+  </section>
+
+  <main>
+    <h2>Explore charging spots</h2>
+    <p>Example listings to preview the Wavvy experience.</p>
+    <div class="cards" id="chargers">
+      <article class="card" data-city="pune">
+        <span class="tag">Example listing</span>
+        <h3>Workplace Charging</h3>
+        <p>Example location · Pune</p>
+        <p>AC charger · Host approval required</p>
+        <div class="price">₹80 <small>/ hour</small></div>
+      </article>
+      <article class="card" data-city="pune">
+        <span class="tag">Example listing</span>
+        <h3>Apartment Parking</h3>
+        <p>Example location · Pune</p>
+        <p>AC charger · Host approval required</p>
+        <div class="price">₹60 <small>/ hour</small></div>
+      </article>
+      <article class="card" data-city="mumbai">
+        <span class="tag">Example listing</span>
+        <h3>Commercial Parking</h3>
+        <p>Example location · Mumbai</p>
+        <p>AC charger · Host approval required</p>
+        <div class="price">₹100 <small>/ hour</small></div>
+      </article>
+    </div>
+  </main>
+
+  <footer>Wavvy is an early prototype. Listings and prices shown are examples, not verified chargers.</footer>
+
+  <script>
+    function findChargers() {
+      const city = document.getElementById('city').value.trim().toLowerCase();
+      const cards = document.querySelectorAll('.card');
+      let count = 0;
+
+      cards.forEach(card => {
+        const matches = !city || card.dataset.city === city;
+        card.style.display = matches ? 'block' : 'none';
+        if (matches) count++;
+      });
+
+      document.getElementById('message').textContent =
+        count ? `Showing ${count} example listing(s).` : 'No example listings for that city yet.';
+    }
+  </script>
+</body>
+</html>
