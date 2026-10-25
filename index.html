@@ -1,90 +1,35 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Find EV charging spots shared by hosts on Wavvy.">
   <title>Wavvy — EV Charging</title>
   <style>
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f5f7fa;
-      color: #10201c;
-    }
-    header {
-      background: #101d2b;
-      color: white;
-      padding: 22px 7%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+    body { margin: 0; font-family: Arial, sans-serif; background: #f5f7fa; color: #10201c; }
+    header { background: #101d2b; color: white; padding: 22px 7%; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
     .logo { font-size: 25px; font-weight: bold; }
     .logo span { color: #70f0a0; }
-    .hero {
-      padding: 65px 7% 55px;
-      background: #101d2b;
-      color: white;
-    }
-    .hero h1 {
-      font-size: clamp(36px, 6vw, 62px);
-      max-width: 700px;
-      margin: 0 0 18px;
-      line-height: 1.08;
-    }
-    .hero p {
-      color: #c6d0db;
-      font-size: 18px;
-      line-height: 1.6;
-      max-width: 540px;
-    }
+    .hero { padding: 65px 7% 55px; background: #101d2b; color: white; }
+    .hero h1 { font-size: clamp(36px, 6vw, 62px); max-width: 700px; margin: 0 0 18px; line-height: 1.08; }
+    .hero p { color: #c6d0db; font-size: 18px; line-height: 1.6; max-width: 540px; }
     .green { color: #70f0a0; }
-    .search {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 28px;
-    }
-    input, button {
-      font: inherit;
-      border-radius: 9px;
-      padding: 14px;
-    }
+    .search { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+    input, button { font: inherit; border-radius: 9px; padding: 14px; }
     input { border: 1px solid #cbd5e1; min-width: 220px; }
-    button {
-      border: 0;
-      background: #70f0a0;
-      color: #10201c;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    main { padding: 35px 7%; }
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 18px;
-    }
-    .card {
-      background: white;
-      border: 1px solid #e1e7ed;
-      border-radius: 14px;
-      padding: 22px;
-    }
-    .tag {
-      display: inline-block;
-      background: #e0fbea;
-      color: #146c3a;
-      padding: 6px 10px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: bold;
-    }
-    .card p { color: #596579; line-height: 1.5; }
+    button { border: 0; background: #70f0a0; color: #10201c; font-weight: bold; cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 3px solid #70f0a0; outline-offset: 2px; }
+    main { padding: 35px 7%; min-height: 220px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+    .card { background: white; border: 1px solid #e1e7ed; border-radius: 14px; padding: 22px; min-width: 0; }
+    .tag { display: inline-block; background: #e0fbea; color: #146c3a; padding: 6px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    .card p { color: #596579; line-height: 1.5; overflow-wrap: anywhere; }
     .price { font-size: 22px; font-weight: bold; }
+    .empty-state { color: #596579; line-height: 1.5; grid-column: 1 / -1; }
     footer { padding: 25px 7%; color: #657080; }
     #message { margin-top: 15px; color: #70f0a0; }
+    @media (max-width: 480px) { header { align-items: flex-start; flex-direction: column; } .hero { padding-top: 44px; } }
   </style>
 </head>
 <body>
@@ -99,56 +44,121 @@
     <p>Discover EV charging spots shared by hosts. Find a convenient place to charge around Pune.</p>
     <div class="search">
       <input id="city" value="Pune" aria-label="City" placeholder="Enter your city">
-      <button onclick="findChargers()">Find chargers</button>
+      <button id="search-button" type="button">Find chargers</button>
     </div>
-    <p id="message" aria-live="polite"></p>
+    <p id="message" aria-live="polite">Loading available chargers…</p>
   </section>
 
   <main>
     <h2>Explore charging spots</h2>
-    <p>Example listings to preview the Wavvy experience.</p>
-    <div class="cards" id="chargers">
-      <article class="card" data-city="pune">
-        <span class="tag">Example listing</span>
-        <h3>Workplace Charging</h3>
-        <p>Example location · Pune</p>
-        <p>AC charger · Host approval required</p>
-        <div class="price">₹80 <small>/ hour</small></div>
-      </article>
-      <article class="card" data-city="pune">
-        <span class="tag">Example listing</span>
-        <h3>Apartment Parking</h3>
-        <p>Example location · Pune</p>
-        <p>AC charger · Host approval required</p>
-        <div class="price">₹60 <small>/ hour</small></div>
-      </article>
-      <article class="card" data-city="mumbai">
-        <span class="tag">Example listing</span>
-        <h3>Commercial Parking</h3>
-        <p>Example location · Mumbai</p>
-        <p>AC charger · Host approval required</p>
-        <div class="price">₹100 <small>/ hour</small></div>
-      </article>
+    <p>Listings published by hosts on Wavvy.</p>
+    <div class="cards" id="chargers" aria-live="polite">
+      <p class="empty-state">Loading available chargers…</p>
     </div>
   </main>
 
-  <footer>Wavvy is an early prototype. Listings and prices shown are examples, not verified chargers.</footer>
+  <footer>Wavvy is an early prototype. Confirm charger availability and access details with the host before travelling.</footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    function findChargers() {
-      const city = document.getElementById('city').value.trim().toLowerCase();
-      const cards = document.querySelectorAll('.card');
-      let count = 0;
+    // A publishable key is intended for browser use. Database access must be protected by RLS.
+    const SUPABASE_URL = "https://veedmnzsmwpcrvzpuyiq.supabase.co";
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_5W6sU4Re-GMg2kbf_OI4Bw_dGu1MZf6";
+    const wavvySupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-      cards.forEach(card => {
-        const matches = !city || card.dataset.city === city;
-        card.style.display = matches ? 'block' : 'none';
-        if (matches) count++;
+    const chargerContainer = document.getElementById("chargers");
+    const message = document.getElementById("message");
+    const cityInput = document.getElementById("city");
+    let activeChargers = [];
+
+    function safeText(value, fallback = "Not provided") {
+      if (value === null || value === undefined || String(value).trim() === "") return fallback;
+      return String(value);
+    }
+
+    function makeTextElement(tagName, className, text) {
+      const element = document.createElement(tagName);
+      if (className) element.className = className;
+      element.textContent = text;
+      return element;
+    }
+
+    function renderChargers() {
+      const requestedCity = cityInput.value.trim().toLocaleLowerCase();
+      const visibleChargers = activeChargers.filter(charger => {
+        return !requestedCity || safeText(charger.city, "").trim().toLocaleLowerCase() === requestedCity;
       });
 
-      document.getElementById('message').textContent =
-        count ? `Showing ${count} example listing(s).` : 'No example listings for that city yet.';
+      chargerContainer.replaceChildren();
+
+      if (visibleChargers.length === 0) {
+        chargerContainer.appendChild(makeTextElement(
+          "p",
+          "empty-state",
+          activeChargers.length
+            ? "No active chargers match that city. Try another city."
+            : "No public charger listings are visible yet. There may be no active listings, or public read access may need to be configured."
+        ));
+        message.textContent = activeChargers.length
+          ? "No matching chargers found."
+          : "No public charger listings are visible yet.";
+        return;
+      }
+
+      visibleChargers.forEach(charger => {
+        const card = document.createElement("article");
+        card.className = "card";
+        card.appendChild(makeTextElement("span", "tag", "Host listing"));
+        card.appendChild(makeTextElement("h3", "", safeText(charger.title, "EV charging spot")));
+        card.appendChild(makeTextElement("p", "", safeText(charger.address, "Address shared after host confirmation") + " · " + safeText(charger.city, "City not specified")));
+        card.appendChild(makeTextElement("p", "", safeText(charger.connector_type, "Connector details not provided") + " · " + safeText(charger.power_kw, "Power not provided") + " kW"));
+        if (charger.description) card.appendChild(makeTextElement("p", "", safeText(charger.description)));
+        const price = document.createElement("div");
+        price.className = "price";
+        price.textContent = "₹" + safeText(charger.price_per_hour, "0");
+        price.appendChild(makeTextElement("small", "", " / hour"));
+        card.appendChild(price);
+        chargerContainer.appendChild(card);
+      });
+
+      message.textContent = "Showing " + visibleChargers.length + " active charger listing(s).";
     }
+
+    async function loadChargers() {
+      message.textContent = "Loading available chargers…";
+      chargerContainer.replaceChildren(makeTextElement("p", "empty-state", "Loading available chargers…"));
+
+      const { data, error } = await wavvySupabase
+        .from("chargers")
+        .select("id,title,address,city,connector_type,power_kw,price_per_hour,description,status")
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Wavvy charger query failed:", error.message);
+        activeChargers = [];
+        chargerContainer.replaceChildren(makeTextElement(
+          "p", "empty-state",
+          "We couldn't load charger listings right now. Please try again later."
+        ));
+        message.textContent = "Charger listings could not be loaded.";
+        return;
+      }
+
+      activeChargers = Array.isArray(data) ? data : [];
+      renderChargers();
+    }
+
+    function findChargers() {
+      renderChargers();
+    }
+
+    document.getElementById("search-button").addEventListener("click", findChargers);
+    cityInput.addEventListener("keydown", event => {
+      if (event.key === "Enter") findChargers();
+    });
+
+    loadChargers();
   </script>
 </body>
 </html>
