@@ -110,7 +110,7 @@
         card.className = "card";
         card.appendChild(makeTextElement("span", "tag", "Host listing"));
         card.appendChild(makeTextElement("h3", "", safeText(charger.title, "EV charging spot")));
-        card.appendChild(makeTextElement("p", "", safeText(charger.address, "Address shared after host confirmation") + " · " + safeText(charger.city, "City not specified")));
+        card.appendChild(makeTextElement("p", "", safeText(charger.city, "City not specified") + " · Exact location shared after host confirmation"));
         card.appendChild(makeTextElement("p", "", safeText(charger.connector_type, "Connector details not provided") + " · " + safeText(charger.power_kw, "Power not provided") + " kW"));
         if (charger.description) card.appendChild(makeTextElement("p", "", safeText(charger.description)));
         const price = document.createElement("div");
@@ -130,9 +130,8 @@
 
       const { data, error } = await wavvySupabase
         .from("chargers")
-        .select("id,title,address,city,connector_type,power_kw,price_per_hour,description,status")
-        .eq("status", "active")
-        .order("created_at", { ascending: false });
+        .select("id,title,city,connector_type,power_kw,price_per_hour,description")
+        .order("title", { ascending: true });
 
       if (error) {
         console.error("Wavvy charger query failed:", error.message);
