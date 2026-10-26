@@ -98,9 +98,12 @@
 
     // Leaflet map markers are driven by Wavvy's Supabase records.
     const stationMap = L.map("station-map", { scrollWheelZoom: false }).setView([18.5204, 73.8567], 12);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    // Use CARTO's Positron basemap instead of the OSM volunteer tile endpoint.
+    // Review CARTO's current usage terms/limits before a production ad campaign.
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      subdomains: "abcd",
       maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
+      attribution: '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>'
     }).addTo(stationMap);
     const stationMarkerGroup = L.markerClusterGroup({ showCoverageOnHover: false });
     stationMarkerGroup.addTo(stationMap);
