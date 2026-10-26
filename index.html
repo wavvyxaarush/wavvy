@@ -20,8 +20,15 @@
     input { border: 1px solid #cbd5e1; min-width: 220px; }
     button { border: 0; background: #70f0a0; color: #10201c; font-weight: bold; cursor: pointer; }
     button:focus-visible, input:focus-visible { outline: 3px solid #70f0a0; outline-offset: 2px; }
-    main { padding: 35px 7%; min-height: 220px; }
+    .map-section { padding: 30px 7% 10px; }
+    .map-shell { overflow: hidden; border-radius: 16px; border: 1px solid #dbe3eb; background: #fff; }
+    .map-frame { display: block; width: 100%; height: 420px; border: 0; }
+    .map-note { font-size: 13px; color: #657080; line-height: 1.5; }
+    main { padding: 28px 7% 35px; min-height: 220px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+    .card-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .card-links a { display: inline-block; border-radius: 8px; padding: 10px 12px; background: #e0fbea; color: #146c3a; font-weight: bold; text-decoration: none; }
+    .card-links a:hover { text-decoration: underline; }
     .card { background: white; border: 1px solid #e1e7ed; border-radius: 14px; padding: 22px; min-width: 0; }
     .tag { display: inline-block; background: #e0fbea; color: #146c3a; padding: 6px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
     .card p { color: #596579; line-height: 1.5; overflow-wrap: anywhere; }
@@ -29,7 +36,7 @@
     .empty-state { color: #596579; line-height: 1.5; grid-column: 1 / -1; }
     footer { padding: 25px 7%; color: #657080; }
     #message { margin-top: 15px; color: #70f0a0; }
-    @media (max-width: 480px) { header { align-items: flex-start; flex-direction: column; } .hero { padding-top: 44px; } }
+    @media (max-width: 480px) { header { align-items: flex-start; flex-direction: column; } .hero { padding-top: 44px; } .map-frame { height: 330px; } }
   </style>
 </head>
 <body>
@@ -47,6 +54,15 @@
       <button id="search-button" type="button">Find chargers</button>
     </div>
     <p id="message" aria-live="polite">Loading available chargers…</p>
+  </section>
+
+  <section class="map-section" aria-labelledby="map-heading">
+    <h2 id="map-heading">Explore on the map</h2>
+    <p>Use the interactive Google Map to explore charging-station search results for the city entered above.</p>
+    <div class="map-shell">
+      <iframe id="google-map" class="map-frame" title="Google Maps public EV charging station search" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+    </div>
+    <p class="map-note">Map pins and results are provided by Google Maps and may not exactly match Wavvy's directory. Confirm a station's connector, access, price and availability before travelling.</p>
   </section>
 
   <main>
@@ -69,7 +85,17 @@
     const chargerContainer = document.getElementById("chargers");
     const message = document.getElementById("message");
     const cityInput = document.getElementById("city");
+    const googleMap = document.getElementById("google-map");
     let activeChargers = [];
+
+    // The legacy Google Maps search embed is used for this early prototype.
+    // It needs no Maps JavaScript API key, but can be replaced by the official
+    // Maps Embed API if Wavvy later creates a restricted Google Maps API key.
+    function updateGoogleMap() {
+      const city = cityInput.value.trim() || "Pune";
+      const search = "EV charging stations in " + city + ", India";
+      googleMap.src = "https://maps.google.com/maps?q=" + encodeURIComponent(search) + "&z=12&output=embed";
+    }
 
     function safeText(value, fallback = "Not provided") {
       if (value === null || value === undefined || String(value).trim() === "") return fallback;
@@ -111,12 +137,24 @@
         if (station.power_kw !== null && station.power_kw !== undefined) details.push("Up to " + station.power_kw + " kW (listed)");
         card.appendChild(makeTextElement("p", "", details.length ? details.join(" · ") : "Connector and power details not verified"));
         if (station.access_notes) card.appendChild(makeTextElement("p", "", station.access_notes));
+        const links = document.createElement("div");
+        links.className = "card-links";
+
+        const mapsLink = document.createElement("a");
+        mapsLink.href = "https://www.google.com/maps/search/?api=1&query=" +
+          encodeURIComponent(safeText(station.name, "EV charging station") + " " + safeText(station.address, "") + " " + safeText(station.city, ""));
+        mapsLink.target = "_blank";
+        mapsLink.rel = "noopener noreferrer";
+        mapsLink.textContent = "View on Google Maps";
+        links.appendChild(mapsLink);
+
         const source = document.createElement("a");
         source.href = station.source_url;
         source.target = "_blank";
         source.rel = "noopener noreferrer";
-        source.textContent = "Check source / operator information";
-        card.appendChild(source);
+        source.textContent = "Source / operator info";
+        links.appendChild(source);
+        card.appendChild(links);
         chargerContainer.appendChild(card);
       });
 
@@ -150,6 +188,7 @@
 
     function findChargers() {
       renderChargers();
+      updateGoogleMap();
     }
 
     document.getElementById("search-button").addEventListener("click", findChargers);
@@ -157,6 +196,7 @@
       if (event.key === "Enter") findChargers();
     });
 
+    updateGoogleMap();
     loadChargers();
   </script>
 </body>
