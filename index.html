@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <meta name="description" content="Find EV charging spots shared by hosts on Wavvy.">
   <title>Wavvy — EV Charging</title>
   <style>
@@ -27,9 +25,9 @@
     .map-shell { overflow: hidden; border-radius: 16px; border: 1px solid #dbe3eb; background: #fff; }
     .map-frame { display: block; width: 100%; height: 420px; border: 0; background: #eef3f6; }
     .map-frame:focus-visible { outline: 3px solid #70f0a0; outline-offset: -3px; }
-    .leaflet-popup-content h3 { margin: 0 0 8px; color: #10201c; }
-    .leaflet-popup-content p { margin: 6px 0; line-height: 1.4; }
-    .leaflet-popup-content a { color: #146c3a; font-weight: bold; }
+    .map-popup h3 { margin: 0 0 8px; color: #10201c; }
+    .map-popup p { margin: 6px 0; line-height: 1.4; }
+    .map-popup a { color: #146c3a; font-weight: bold; }
     .map-note { font-size: 13px; color: #657080; line-height: 1.5; }
     main { padding: 28px 7% 35px; min-height: 220px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
@@ -82,8 +80,7 @@
 
   <footer>Wavvy public directory prototype. Listings are not guaranteed live or operator-confirmed. Confirm connector compatibility, price, access and availability with the operator before travelling. These public stations are separate from Wavvy’s future host-sharing marketplace.</footer>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // A publishable key is intended for browser use. Database access must be protected by RLS.
@@ -96,20 +93,19 @@
     const cityInput = document.getElementById("city");
     let activeChargers = [];
 
-    // Leaflet map markers are driven by Wavvy's Supabase records.
-    const stationMap = L.map("station-map", { scrollWheelZoom: false }).setView([18.5204, 73.8567], 12);
-    // Use CARTO's Positron basemap instead of the OSM volunteer tile endpoint.
-    // Review CARTO's current usage terms/limits before a production ad campaign.
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      subdomains: "abcd",
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>'
-    }).addTo(stationMap);
-    const stationMarkerGroup = L.markerClusterGroup({ showCoverageOnHover: false });
-    stationMarkerGroup.addTo(stationMap);
+    // OpenFreeMap public style: documented as no API key required.
+    const stationMap = new maplibregl.Map({
+      container: "station-map",
+      style: "https://tiles.openfreemap.org/styles/positron",
+      center: [73.8567, 18.5204],
+      zoom: 11
+    });
+    stationMap.addControl(new maplibregl.NavigationControl(), "top-right");
+    const stationMarkers = [];
 
     function renderStationMap(stations) {
-      stationMarkerGroup.clearLayers();
+      stationMarkers.forEach(marker => marker.remove());
+      stationMarkers.length = 0;
       const mappable = stations.filter(station =>
         station.latitude !== null && station.latitude !== undefined &&
         station.longitude !== null && station.longitude !== undefined &&
@@ -117,12 +113,12 @@
       );
 
       mappable.forEach(station => {
-        const marker = L.marker([Number(station.latitude), Number(station.longitude)]);
-        const popup = document.createElement("div");
-        popup.appendChild(makeTextElement("h3", "", safeText(station.name, "EV charging station")));
-        popup.appendChild(makeTextElement("p", "", safeText(station.operator, "Operator not listed")));
-        popup.appendChild(makeTextElement("p", "", safeText(station.address, "Address not listed")));
-        popup.appendChild(makeTextElement("p", "", "Approximate neighbourhood pin — confirm the exact location with the operator."));
+        const popupContent = document.createElement("div");
+        popupContent.className = "map-popup";
+        popupContent.appendChild(makeTextElement("h3", "", safeText(station.name, "EV charging station")));
+        popupContent.appendChild(makeTextElement("p", "", safeText(station.operator, "Operator not listed")));
+        popupContent.appendChild(makeTextElement("p", "", safeText(station.address, "Address not listed")));
+        popupContent.appendChild(makeTextElement("p", "", "Approximate neighbourhood pin — confirm exact location with the operator."));
 
         const mapsLink = document.createElement("a");
         mapsLink.href = "https://www.google.com/maps/search/?api=1&query=" +
@@ -130,17 +126,24 @@
         mapsLink.target = "_blank";
         mapsLink.rel = "noopener noreferrer";
         mapsLink.textContent = "Open in Google Maps";
-        popup.appendChild(mapsLink);
-        marker.bindPopup(popup);
-        stationMarkerGroup.addLayer(marker);
+        popupContent.appendChild(mapsLink);
+
+        const popup = new maplibregl.Popup({ offset: 24 }).setDOMContent(popupContent);
+        const marker = new maplibregl.Marker({ color: "#16a34a" })
+          .setLngLat([Number(station.longitude), Number(station.latitude)])
+          .setPopup(popup)
+          .addTo(stationMap);
+        stationMarkers.push(marker);
       });
 
       if (mappable.length) {
-        stationMap.fitBounds(stationMarkerGroup.getBounds().pad(0.12), { maxZoom: 13 });
+        const bounds = new maplibregl.LngLatBounds();
+        mappable.forEach(station => bounds.extend([Number(station.longitude), Number(station.latitude)]));
+        stationMap.fitBounds(bounds, { padding: 45, maxZoom: 12, duration: 0 });
       } else {
-        stationMap.setView([18.5204, 73.8567], 12);
+        stationMap.flyTo({ center: [73.8567, 18.5204], zoom: 11 });
       }
-      window.setTimeout(() => stationMap.invalidateSize(), 0);
+      stationMap.resize();
     }
 
     function safeText(value, fallback = "Not provided") {
