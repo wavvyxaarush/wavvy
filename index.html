@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
   <meta name="description" content="Find EV charging spots shared by hosts on Wavvy.">
   <title>Wavvy — EV Charging</title>
   <style>
@@ -22,7 +25,11 @@
     button:focus-visible, input:focus-visible { outline: 3px solid #70f0a0; outline-offset: 2px; }
     .map-section { padding: 30px 7% 10px; }
     .map-shell { overflow: hidden; border-radius: 16px; border: 1px solid #dbe3eb; background: #fff; }
-    .map-frame { display: block; width: 100%; height: 420px; border: 0; }
+    .map-frame { display: block; width: 100%; height: 420px; border: 0; background: #eef3f6; }
+    .map-frame:focus-visible { outline: 3px solid #70f0a0; outline-offset: -3px; }
+    .leaflet-popup-content h3 { margin: 0 0 8px; color: #10201c; }
+    .leaflet-popup-content p { margin: 6px 0; line-height: 1.4; }
+    .leaflet-popup-content a { color: #146c3a; font-weight: bold; }
     .map-note { font-size: 13px; color: #657080; line-height: 1.5; }
     main { padding: 28px 7% 35px; min-height: 220px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
@@ -58,11 +65,11 @@
 
   <section class="map-section" aria-labelledby="map-heading">
     <h2 id="map-heading">Explore on the map</h2>
-    <p>Use the interactive Google Map to explore charging-station search results for the city entered above.</p>
+    <p>Explore station markers from Wavvy's public directory. Select a marker to see its listing.</p>
     <div class="map-shell">
-      <iframe id="google-map" class="map-frame" title="Google Maps public EV charging station search" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <div id="station-map" class="map-frame" role="application" aria-label="Interactive map of public EV charging stations"></div>
     </div>
-    <p class="map-note">Map pins and results are provided by Google Maps and may not exactly match Wavvy's directory. Confirm a station's connector, access, price and availability before travelling.</p>
+    <p class="map-note"><strong>Location accuracy:</strong> These first pins show approximate neighbourhood areas, not the exact charger entrance. Use each station's Google Maps link and confirm connector compatibility, access, price and availability with the operator before travelling. Map data © OpenStreetMap contributors.</p>
   </section>
 
   <main>
@@ -75,6 +82,8 @@
 
   <footer>Wavvy public directory prototype. Listings are not guaranteed live or operator-confirmed. Confirm connector compatibility, price, access and availability with the operator before travelling. These public stations are separate from Wavvy’s future host-sharing marketplace.</footer>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // A publishable key is intended for browser use. Database access must be protected by RLS.
@@ -85,16 +94,50 @@
     const chargerContainer = document.getElementById("chargers");
     const message = document.getElementById("message");
     const cityInput = document.getElementById("city");
-    const googleMap = document.getElementById("google-map");
     let activeChargers = [];
 
-    // The legacy Google Maps search embed is used for this early prototype.
-    // It needs no Maps JavaScript API key, but can be replaced by the official
-    // Maps Embed API if Wavvy later creates a restricted Google Maps API key.
-    function updateGoogleMap() {
-      const city = cityInput.value.trim() || "Pune";
-      const search = "EV charging stations in " + city + ", India";
-      googleMap.src = "https://maps.google.com/maps?q=" + encodeURIComponent(search) + "&z=12&output=embed";
+    // Leaflet map markers are driven by Wavvy's Supabase records.
+    const stationMap = L.map("station-map", { scrollWheelZoom: false }).setView([18.5204, 73.8567], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
+    }).addTo(stationMap);
+    const stationMarkerGroup = L.markerClusterGroup({ showCoverageOnHover: false });
+    stationMarkerGroup.addTo(stationMap);
+
+    function renderStationMap(stations) {
+      stationMarkerGroup.clearLayers();
+      const mappable = stations.filter(station =>
+        station.latitude !== null && station.latitude !== undefined &&
+        station.longitude !== null && station.longitude !== undefined &&
+        Number.isFinite(Number(station.latitude)) && Number.isFinite(Number(station.longitude))
+      );
+
+      mappable.forEach(station => {
+        const marker = L.marker([Number(station.latitude), Number(station.longitude)]);
+        const popup = document.createElement("div");
+        popup.appendChild(makeTextElement("h3", "", safeText(station.name, "EV charging station")));
+        popup.appendChild(makeTextElement("p", "", safeText(station.operator, "Operator not listed")));
+        popup.appendChild(makeTextElement("p", "", safeText(station.address, "Address not listed")));
+        popup.appendChild(makeTextElement("p", "", "Approximate neighbourhood pin — confirm the exact location with the operator."));
+
+        const mapsLink = document.createElement("a");
+        mapsLink.href = "https://www.google.com/maps/search/?api=1&query=" +
+          encodeURIComponent(safeText(station.name, "EV charging station") + " " + safeText(station.address, "") + " " + safeText(station.city, ""));
+        mapsLink.target = "_blank";
+        mapsLink.rel = "noopener noreferrer";
+        mapsLink.textContent = "Open in Google Maps";
+        popup.appendChild(mapsLink);
+        marker.bindPopup(popup);
+        stationMarkerGroup.addLayer(marker);
+      });
+
+      if (mappable.length) {
+        stationMap.fitBounds(stationMarkerGroup.getBounds().pad(0.12), { maxZoom: 13 });
+      } else {
+        stationMap.setView([18.5204, 73.8567], 12);
+      }
+      window.setTimeout(() => stationMap.invalidateSize(), 0);
     }
 
     function safeText(value, fallback = "Not provided") {
@@ -116,6 +159,7 @@
       });
 
       chargerContainer.replaceChildren();
+      renderStationMap(visibleChargers);
 
       if (visibleChargers.length === 0) {
         chargerContainer.appendChild(makeTextElement("p", "empty-state",
@@ -167,7 +211,7 @@
 
       const { data, error } = await wavvySupabase
         .from("public_stations")
-        .select("id,name,operator,address,city,connector_type,power_kw,access_notes,source_url,source_name,verification_status,last_checked_at")
+        .select("id,name,operator,address,city,connector_type,power_kw,access_notes,source_url,source_name,verification_status,last_checked_at,latitude,longitude,coordinate_precision")
         .in("verification_status", ["listed_unverified", "operator_confirmed"])
         .order("name", { ascending: true });
 
@@ -188,7 +232,6 @@
 
     function findChargers() {
       renderChargers();
-      updateGoogleMap();
     }
 
     document.getElementById("search-button").addEventListener("click", findChargers);
@@ -196,7 +239,6 @@
       if (event.key === "Enter") findChargers();
     });
 
-    updateGoogleMap();
     loadChargers();
   </script>
 </body>
