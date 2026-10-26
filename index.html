@@ -41,7 +41,7 @@
   <section class="hero">
     <p class="green">A smarter way to charge</p>
     <h1>Find a charger.<br><span class="green">Keep moving.</span></h1>
-    <p>Discover EV charging spots shared by hosts. Find a convenient place to charge around Pune.</p>
+    <p>Find public EV charging stations around Pune. Confirm details and live availability with the operator before travelling.</p>
     <div class="search">
       <input id="city" value="Pune" aria-label="City" placeholder="Enter your city">
       <button id="search-button" type="button">Find chargers</button>
@@ -50,14 +50,14 @@
   </section>
 
   <main>
-    <h2>Explore charging spots</h2>
-    <p>Listings published by hosts on Wavvy.</p>
+    <h2>Public charging stations</h2>
+    <p>Public directory listings. Connector details and live availability may change; verify with the operator.</p>
     <div class="cards" id="chargers" aria-live="polite">
       <p class="empty-state">Loading available chargers…</p>
     </div>
   </main>
 
-  <footer>Wavvy is an early prototype. Confirm charger availability and access details with the host before travelling.</footer>
+  <footer>Wavvy public directory prototype. Listings are not guaranteed live or operator-confirmed. Confirm connector compatibility, price, access and availability with the operator before travelling. These public stations are separate from Wavvy’s future host-sharing marketplace.</footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
@@ -92,36 +92,35 @@
       chargerContainer.replaceChildren();
 
       if (visibleChargers.length === 0) {
-        chargerContainer.appendChild(makeTextElement(
-          "p",
-          "empty-state",
-          activeChargers.length
-            ? "No active chargers match that city. Try another city."
-            : "No public charger listings are visible yet. There may be no active listings, or public read access may need to be configured."
-        ));
-        message.textContent = activeChargers.length
-          ? "No matching chargers found."
-          : "No public charger listings are visible yet.";
+        chargerContainer.appendChild(makeTextElement("p", "empty-state",
+          activeChargers.length ? "No stations match that city. Try another city." : "No public station records are available yet."));
+        message.textContent = activeChargers.length ? "No matching stations found." : "No public station records are available.";
         return;
       }
 
-      visibleChargers.forEach(charger => {
+      visibleChargers.forEach(station => {
         const card = document.createElement("article");
         card.className = "card";
-        card.appendChild(makeTextElement("span", "tag", "Host listing"));
-        card.appendChild(makeTextElement("h3", "", safeText(charger.title, "EV charging spot")));
-        card.appendChild(makeTextElement("p", "", safeText(charger.city, "City not specified") + " · Exact location shared after host confirmation"));
-        card.appendChild(makeTextElement("p", "", safeText(charger.connector_type, "Connector details not provided") + " · " + safeText(charger.power_kw, "Power not provided") + " kW"));
-        if (charger.description) card.appendChild(makeTextElement("p", "", safeText(charger.description)));
-        const price = document.createElement("div");
-        price.className = "price";
-        price.textContent = "₹" + safeText(charger.price_per_hour, "0");
-        price.appendChild(makeTextElement("small", "", " / hour"));
-        card.appendChild(price);
+        card.appendChild(makeTextElement("span", "tag",
+          station.verification_status === "operator_confirmed" ? "Operator confirmed" : "Public listing · verify details"));
+        card.appendChild(makeTextElement("h3", "", safeText(station.name, "EV charging station")));
+        card.appendChild(makeTextElement("p", "", safeText(station.operator, "Operator not listed") + " · " + safeText(station.city, "City not specified")));
+        card.appendChild(makeTextElement("p", "", safeText(station.address, "Address not listed")));
+        const details = [];
+        if (station.connector_type) details.push("Connector: " + station.connector_type);
+        if (station.power_kw !== null && station.power_kw !== undefined) details.push("Up to " + station.power_kw + " kW (listed)");
+        card.appendChild(makeTextElement("p", "", details.length ? details.join(" · ") : "Connector and power details not verified"));
+        if (station.access_notes) card.appendChild(makeTextElement("p", "", station.access_notes));
+        const source = document.createElement("a");
+        source.href = station.source_url;
+        source.target = "_blank";
+        source.rel = "noopener noreferrer";
+        source.textContent = "Check source / operator information";
+        card.appendChild(source);
         chargerContainer.appendChild(card);
       });
 
-      message.textContent = "Showing " + visibleChargers.length + " active charger listing(s).";
+      message.textContent = "Showing " + visibleChargers.length + " public station listing(s). Confirm details before travelling.";
     }
 
     async function loadChargers() {
@@ -129,12 +128,13 @@
       chargerContainer.replaceChildren(makeTextElement("p", "empty-state", "Loading available chargers…"));
 
       const { data, error } = await wavvySupabase
-        .from("chargers")
-        .select("id,title,city,connector_type,power_kw,price_per_hour,description")
-        .order("title", { ascending: true });
+        .from("public_stations")
+        .select("id,name,operator,address,city,connector_type,power_kw,access_notes,source_url,source_name,verification_status,last_checked_at")
+        .in("verification_status", ["listed_unverified", "operator_confirmed"])
+        .order("name", { ascending: true });
 
       if (error) {
-        console.error("Wavvy charger query failed:", error.message);
+        console.error("Wavvy public-stations query failed:", error.message);
         activeChargers = [];
         chargerContainer.replaceChildren(makeTextElement(
           "p", "empty-state",
