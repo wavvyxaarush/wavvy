@@ -41,6 +41,17 @@
     .empty-state { color: #596579; line-height: 1.5; grid-column: 1 / -1; }
     footer { padding: 25px 7%; color: #657080; }
     #message { margin-top: 15px; color: #70f0a0; }
+
+    .auth-section { padding: 30px 7%; }
+    .auth-panel { background: #fff; border: 1px solid #e1e7ed; border-radius: 14px; padding: 22px; max-width: 620px; }
+    .auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .auth-grid input, .auth-grid select { width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: 9px; padding: 13px; font: inherit; }
+    .auth-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .auth-actions button.secondary { background: #e8eef4; color: #10201c; }
+    #auth-status { color: #596579; line-height: 1.5; min-height: 24px; }
+    #account-state { color: #146c3a; font-weight: bold; }
+    @media (max-width: 520px) { .auth-grid { grid-template-columns: 1fr; } }
+
     @media (max-width: 480px) { header { align-items: flex-start; flex-direction: column; } .hero { padding-top: 44px; } .map-frame { height: 330px; } }
   </style>
 </head>
@@ -68,6 +79,31 @@
       <div id="station-map" class="map-frame" role="application" aria-label="Interactive map of public EV charging stations"></div>
     </div>
     <p class="map-note"><strong>Location accuracy:</strong> These first pins show approximate neighbourhood areas, not the exact charger entrance. Use each station's Google Maps link and confirm connector compatibility, access, price and availability with the operator before travelling. Map data © OpenStreetMap contributors.</p>
+  </section>
+
+
+  <section class="auth-section" aria-labelledby="account-heading">
+    <h2 id="account-heading">Your Wavvy account</h2>
+    <p>Create an account as a driver, a charger host, or both.</p>
+    <div class="auth-panel">
+      <p id="account-state" aria-live="polite">Not signed in</p>
+      <div class="auth-grid">
+        <input id="auth-name" type="text" autocomplete="name" maxlength="80" placeholder="Full name (for sign up)" aria-label="Full name">
+        <input id="auth-email" type="email" autocomplete="email" maxlength="254" placeholder="Email address" aria-label="Email address" required>
+        <input id="auth-password" type="password" autocomplete="new-password" minlength="8" maxlength="72" placeholder="Password (at least 8 characters)" aria-label="Password" required>
+        <select id="auth-role" aria-label="Account type">
+          <option value="both">Driver and host</option>
+          <option value="driver">Driver only</option>
+          <option value="host">Host only</option>
+        </select>
+      </div>
+      <div class="auth-actions">
+        <button id="signup-button" type="button">Create account</button>
+        <button id="login-button" class="secondary" type="button">Log in</button>
+        <button id="logout-button" class="secondary" type="button" hidden>Log out</button>
+      </div>
+      <p id="auth-status" role="status" aria-live="polite">Use your email and password. Email confirmation may be required before your first login.</p>
+    </div>
   </section>
 
   <main>
@@ -243,6 +279,133 @@
     document.getElementById("search-button").addEventListener("click", findChargers);
     cityInput.addEventListener("keydown", event => {
       if (event.key === "Enter") findChargers();
+    });
+
+
+    const accountState = document.getElementById("account-state");
+    const authStatus = document.getElementById("auth-status");
+    const authName = document.getElementById("auth-name");
+    const authEmail = document.getElementById("auth-email");
+    const authPassword = document.getElementById("auth-password");
+    const authRole = document.getElementById("auth-role");
+    const signupButton = document.getElementById("signup-button");
+    const loginButton = document.getElementById("login-button");
+    const logoutButton = document.getElementById("logout-button");
+
+    function setAuthBusy(busy) {
+      signupButton.disabled = busy;
+      loginButton.disabled = busy;
+      logoutButton.disabled = busy;
+    }
+
+    async function saveUserProfile(user, fallbackName, fallbackRole) {
+      const metadata = user.user_metadata || {};
+      const profile = {
+        id: user.id,
+        full_name: metadata.full_name || fallbackName || null,
+        role: metadata.role || fallbackRole || "both"
+      };
+      const { error } = await wavvySupabase.from("profiles").upsert(profile, { onConflict: "id" });
+      if (error) throw error;
+      return profile;
+    }
+
+    async function showSignedInUser(user) {
+      if (!user) {
+        accountState.textContent = "Not signed in";
+        signupButton.hidden = false;
+        loginButton.hidden = false;
+        logoutButton.hidden = true;
+        authPassword.autocomplete = "new-password";
+        return;
+      }
+      let profileName = user.user_metadata?.full_name || user.email || "Wavvy user";
+      try {
+        const { data, error } = await wavvySupabase.from("profiles")
+          .select("full_name,role").eq("id", user.id).maybeSingle();
+        if (error) throw error;
+        if (data) profileName = data.full_name || profileName;
+      } catch (error) {
+        console.error("Wavvy profile read failed:", error.message);
+      }
+      accountState.textContent = "Signed in: " + profileName;
+      signupButton.hidden = true;
+      loginButton.hidden = true;
+      logoutButton.hidden = false;
+    }
+
+    signupButton.addEventListener("click", async () => {
+      const email = authEmail.value.trim();
+      const password = authPassword.value;
+      const fullName = authName.value.trim();
+      if (!email || !password || password.length < 8 || !fullName) {
+        authStatus.textContent = "Enter your full name, a valid email, and a password of at least 8 characters.";
+        return;
+      }
+      setAuthBusy(true);
+      authStatus.textContent = "Creating your account…";
+      try {
+        const { data, error } = await wavvySupabase.auth.signUp({
+          email, password,
+          options: { data: { full_name: fullName, role: authRole.value } }
+        });
+        if (error) throw error;
+        if (data.user && data.session) {
+          await saveUserProfile(data.user, fullName, authRole.value);
+          authStatus.textContent = "Account created. You're signed in to Wavvy.";
+          await showSignedInUser(data.user);
+        } else {
+          authStatus.textContent = "Account created. Check your email for a confirmation link, then return here and log in.";
+        }
+      } catch (error) {
+        authStatus.textContent = error.message || "We couldn't create your account. Please try again.";
+      } finally {
+        setAuthBusy(false);
+      }
+    });
+
+    loginButton.addEventListener("click", async () => {
+      const email = authEmail.value.trim();
+      const password = authPassword.value;
+      if (!email || !password) {
+        authStatus.textContent = "Enter your email address and password.";
+        return;
+      }
+      setAuthBusy(true);
+      authStatus.textContent = "Logging in…";
+      try {
+        const { data, error } = await wavvySupabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        await saveUserProfile(data.user);
+        authStatus.textContent = "Welcome back to Wavvy.";
+        await showSignedInUser(data.user);
+      } catch (error) {
+        authStatus.textContent = error.message || "Login failed. Check your details and try again.";
+      } finally {
+        setAuthBusy(false);
+      }
+    });
+
+    logoutButton.addEventListener("click", async () => {
+      setAuthBusy(true);
+      try {
+        const { error } = await wavvySupabase.auth.signOut();
+        if (error) throw error;
+        authStatus.textContent = "You've logged out.";
+        await showSignedInUser(null);
+      } catch (error) {
+        authStatus.textContent = error.message || "Logout failed. Please try again.";
+      } finally {
+        setAuthBusy(false);
+      }
+    });
+
+    wavvySupabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        authStatus.textContent = "Couldn't restore your session. Please refresh and try again.";
+        return;
+      }
+      showSignedInUser(data.session?.user || null);
     });
 
     loadChargers();
